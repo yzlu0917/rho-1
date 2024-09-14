@@ -1,0 +1,23 @@
+{
+    "train_micro_batch_size_per_gpu": 4,
+    "bf16": {
+      "enabled": "auto"
+    },
+    "gradient_clipping": 0.5,
+    "zero_optimization": {
+      "stage": 1
+    },
+    "aio": {
+      "block_size": 1048576,
+      "queue_depth": 8,
+      "thread_count": 1,
+      "single_submit": false,
+      "overlap_events": true
+    },
+    "wandb": {
+      "enabled": true,
+      "group": "sqz-agi",
+      "team": "sqz-agi",
+      "project": "sqz_math_comb"
+    }
+  }
