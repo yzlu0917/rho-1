@@ -6,6 +6,7 @@ from transformers import AutoTokenizer, AutoConfig, AutoModelForCausalLM
 from utils.train import print_rank_0
 from transformers import LlamaForCausalLM, LlamaConfig
 from rho1.SLMforward import SelectiveAutoModelForCausalLM
+from rho1.SLMentropy import SelectiveAutoModelEntropyForCausalLM
 
 def init_config(pretrained_model_name_or_path: str):
     config = AutoConfig.from_pretrained(pretrained_model_name_or_path)
@@ -47,6 +48,26 @@ def init_slm_from_pretrained(
     tokenizer = AutoTokenizer.from_pretrained(os.path.join(pretrained_dir, "tokenizer"))
 
     model = SelectiveAutoModelForCausalLM.from_pretrained(
+        pretrained_dir, 
+        config=config, 
+        attn_implementation=attn_implementation,
+        torch_dtype=torch.bfloat16
+    )
+
+    return model, tokenizer, config
+
+def init_slm_entropy_from_pretrained(
+    pretrained_dir: str,
+    attn_implementation: Optional[str] = "flash_attention_2",
+):
+
+    config = AutoConfig.from_pretrained(
+        os.path.join(pretrained_dir, "config"), attn_implementation=attn_implementation
+    )
+
+    tokenizer = AutoTokenizer.from_pretrained(os.path.join(pretrained_dir, "tokenizer"))
+
+    model = SelectiveAutoModelEntropyForCausalLM.from_pretrained(
         pretrained_dir, 
         config=config, 
         attn_implementation=attn_implementation,

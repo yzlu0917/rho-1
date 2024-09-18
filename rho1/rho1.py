@@ -17,11 +17,10 @@ from utils.ds_utils import get_train_ds_config
 from deepspeed import DeepSpeedConfig, get_accelerator
 from deepspeed.monitor.monitor import MonitorMaster
 from dotenv import load_dotenv
-from dataloader import PretrainDataset
+from pretrain.dataloader import PretrainDataset
 from torch.utils.data import DataLoader, DistributedSampler, RandomSampler
 
 from arguments import DataArguments, ModelArguments, TrainingArguments
-from dataset.dataset import ConceptMaskDataCollator, ConceptMaskDataset
 from model.utils import print_model_parameters, save_model, init_slm_from_pretrained
 from utils.file import dump_json_file, load_json_file
 from utils.train import get_all_reduce_mean, print_rank_0, set_random_seed, to_device, is_rank_0
