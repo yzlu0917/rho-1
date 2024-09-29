@@ -12,7 +12,6 @@ class PretrainDataset(Dataset):
     """加载数据
     这里保存了多个文件到sample的映射, 以便于节约内存
     """
-
     def __init__(self, data_path, max_length: int = 4096):
         self.data = []
         self.index_map = {}

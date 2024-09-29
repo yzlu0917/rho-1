@@ -17,7 +17,7 @@ from utils.ds_utils import get_train_ds_config
 from deepspeed import DeepSpeedConfig, get_accelerator
 from deepspeed.monitor.monitor import MonitorMaster
 from dotenv import load_dotenv
-from dataset.Coqdataset import CoqDataCollator, CoqDataset
+from sft_dataloader import SFTDataset
 from torch.utils.data import DataLoader, DistributedSampler, RandomSampler
 
 from arguments import DataArguments, ModelArguments, TrainingArguments
@@ -76,7 +76,6 @@ class Trainer:
         self.init_deepspeed()
 
         self.init_monitor()
-
     def parse_arguments(self):
         parser = transformers.HfArgumentParser((ModelArguments, DataArguments, TrainingArguments))
 
@@ -189,8 +188,7 @@ class Trainer:
         print_rank_0("start load model", rank=self.training_args.global_rank, wrap=True)
 
         model, tokenizer, config = init_from_pretrained(
-            pretrained_dir=self.model_args.pretrained_dir,
-            model_max_length=self.training_args.model_max_length
+            pretrained_dir=self.model_args.pretrained_dir
         )
 
         self.model = model
@@ -205,11 +203,11 @@ class Trainer:
         print_rank_0("end load model", rank=self.training_args.global_rank, wrap=True)
     
     def build_dataloader(self):
-        train_dataset = CoqDataset(self.training_args.data_path, 
+        train_dataset = SFTDataset(self.training_args.data_path, 
                                                 self.training_args.anneal_path, 
                                                 self.training_args.model_max_length)
         
-        eval_dataset = CoqDataset(self.training_args.eval_path, self.training_args.model_max_length)
+        eval_dataset = SFTDataset(self.training_args.eval_path, self.training_args.model_max_length)
 
         if self.training_args.local_rank == -1:
             train_sampler = RandomSampler(train_dataset)
@@ -217,18 +215,12 @@ class Trainer:
         else:
             train_sampler = DistributedSampler(train_dataset, shuffle=False)
             eval_sampler = DistributedSampler(eval_dataset, shuffle=False)
-        
-        self.data_collator = CoqDataCollator(
-            tokenizer=self.tokenizer,
-            max_length = self.training_args.model_max_length
-        )
 
         self.train_dataloader = DataLoader(
             train_dataset,
             num_workers=4,
             prefetch_factor=4,
             sampler=train_sampler,
-            collate_fn=self.data_collator,
             batch_size=self.training_args.per_device_train_batch_size,
             pin_memory=True
         )
@@ -237,7 +229,6 @@ class Trainer:
             eval_dataset,
             num_workers=4,
             prefetch_factor=4,
-            collate_fn=self.data_collator,
             sampler=eval_sampler,
             batch_size=self.training_args.per_device_eval_batch_size,
             pin_memory=True

@@ -10,7 +10,7 @@ fi
 # 赋值操作
 OUTPUT_FOLDER_NAME="$1"
 
-MODEL_NAME="/cephfs/shared/hf_cache/hub/models--huggyllama--llama-7b/snapshots/8416d3fefb0cb3ff5775a7b13c1692d10ff1aa16"
+MODEL_NAME="/cephfs/shared/hf_cache/hub/models--microsoft--phi-2/snapshots/710686f446f02286c858c11f052acb87c306ddd2"
 DATA_PATH="/cephfs/shared/lichao/pretrain/data/pretrain_data/train"
 EVAL_PATH="/cephfs/shared/lichao/pretrain/data/pretrain_data/test"
 ANNEAL_PATH="/cephfs/shared/lichao/pretrain/data/pretrain_data/anneal"
@@ -29,7 +29,7 @@ mkdir -p "$SAVE_PATH"
   export NCCL_DEBUG=INFO
   export NCCL_TIMEOUT=3600
   export TORCH_NCCL_ASYNC_ERROR_HANDLING=1
-  export PYTHONPATH=$PYTHONPATH:/cephfs/lichao/codes/edge-llm
+  export PYTHONPATH=$PYTHONPATH:/cephfs/shared/luyanzhen/codes/rho1
 
   echo "Starting training at $(date)"
   echo "Saving logs to $LOG_FILE"

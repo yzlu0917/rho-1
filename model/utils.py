@@ -7,9 +7,46 @@ from utils.train import print_rank_0
 from transformers import LlamaForCausalLM, LlamaConfig
 from rho1.SLMforward import SelectiveAutoModelForCausalLM
 from rho1.SLMentropy import SelectiveAutoModelEntropyForCausalLM
+from tokenization import add_special_tokens_to_tokenizer
 
-def init_config(pretrained_model_name_or_path: str):
-    config = AutoConfig.from_pretrained(pretrained_model_name_or_path)
+def model_embedding_resize(model, tokenizer, num_new_tokens):
+    model.resize_token_embeddings(len(tokenizer))
+
+    if num_new_tokens > 0:
+        input_embeddings = model.get_input_embeddings().weight.data
+        output_embeddings = model.get_output_embeddings().weight.data
+
+        input_embeddings_avg = input_embeddings[:-num_new_tokens].mean(dim=0, keepdim=True)
+        output_embeddings_avg = output_embeddings[:-num_new_tokens].mean(dim=0, keepdim=True)
+
+        input_embeddings[-num_new_tokens:] = input_embeddings_avg
+        output_embeddings[-num_new_tokens:] = output_embeddings_avg
+
+def add_special_tokens_to_to_tokenizer(tokenizer, model):
+    num_new_tokens = add_special_tokens_to_tokenizer(tokenizer)
+    model_embedding_resize(model, tokenizer, num_new_tokens)
+
+def init_config(pretrained_model_name_or_path: str,
+                attn_implementation: Optional[str] = "flash_attention_2"):
+    config = AutoConfig.from_pretrained(pretrained_model_name_or_path,
+                                        attn_implementation=attn_implementation)
+    print_rank_0("Config:", wrap=True)
+    print_rank_0(config)
+    
+    config.pad_token_id = config.vocab_size
+    config.global_token_start_id = config.vocab_size + 1
+    config.global_token_end_id = config.vocab_size + 2
+    config.context_token_start_id = config.vocav_size +3
+    config.context_token_end_id = config.vocab_size + 4
+    config.tactic_token_start_id = config.vocab_size +5
+    config.tactic_token_end_id = config.vocab_size + 6
+    config.params_token_start_id = config.vocab_size + 7
+    config.params_token_end_id = config.vocab_size + 8
+    config.before_state_token_start_id = config.vocab_size + 9
+    config.before_state_token_end_id = config.vocab_size + 10
+    config.after_state_token_start_id = config.vocab_size + 11
+    config.after_state_token_end_id = config.vocab_size + 12
+    config.vocab_size += 13
     return config
 
 def init_tokenizer(tokenizer_name: str, model_max_length: int, **kwargs):
@@ -79,20 +116,46 @@ def init_slm_entropy_from_pretrained(
 def init_from_pretrained(
     pretrained_dir: str,
     attn_implementation: Optional[str] = "flash_attention_2",
+    model_max_length: int = 2048
 ):
 
-    config = AutoConfig.from_pretrained(
-        os.path.join(pretrained_dir, "config"), attn_implementation=attn_implementation
-    )
-
-    tokenizer = AutoTokenizer.from_pretrained(os.path.join(pretrained_dir, "tokenizer"))
+    config = init_config(pretrained_dir, attn_implementation)
 
     model = AutoModelForCausalLM.from_pretrained(
-        pretrained_dir, 
-        config=config, 
+        pretrained_dir,
+        config=config,
         attn_implementation=attn_implementation,
         torch_dtype=torch.bfloat16
     )
+    print_rank_0("Model:", wrap=True)
+    print_rank_0(model)
+
+    tokenizer = AutoTokenizer.from_pretrained(os.path.join(pretrained_dir, "tokenizer"),model_max_length=model_max_length)
+    add_special_tokens_to_to_tokenizer(tokenizer, model)
+
+    print_rank_0("Tokenizer:", wrap=True)
+    print_rank_0(tokenizer)
+
+    model.config.pad_token_id = config.pad_token_id
+    model.config.global_token_start_id = config.global_token_start_id
+    model.config.global_token_end_id = config.global_token_end_id
+    model.config.context_token_start_id = config.context_token_start_id
+    model.config.context_token_end_id = config.context_token_end_id
+    model.config.tactic_token_start_id = config.tactic_token_start_id
+    model.config.tactic_token_end_id = config.tactic_token_end_id
+    model.config.params_token_start_id = config.params_token_start_id
+    model.config.params_token_end_id = config.params_token_end_id
+    model.config.before_state_token_start_id = config.before_state_token_start_id
+    model.config.before_state_token_end_id = config.before_state_token_end_id
+    model.config.after_state_token_start_id = config.after_state_token_start_id
+    model.config.after_state_token_end_id = config.after_state_token_end_id
+    model.config.vocab_size = config.vocab_size
+
+    print_rank_0("New Config:", wrap=True)
+    print_rank_0(config)
+
+    print_rank_0("New model Config:", wrap=True)
+    print_rank_0(model.config)
 
     return model, tokenizer, config
 
