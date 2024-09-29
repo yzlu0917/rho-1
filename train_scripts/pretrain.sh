@@ -16,7 +16,7 @@ EVAL_PATH="/cephfs/shared/yanghanbin/data/coq/test_data_proof_state_transition_o
 
 CURRENT_DATETIME=$(date "+%Y-%m-%d-%H-%M-%S")
 
-SAVE_PATH="/cephfs/shared/lichao/pretrain/checkpoints/${OUTPUT_FOLDER_NAME}-${CURRENT_DATETIME}"
+SAVE_PATH="/cephfs/shared/luyanzhen/coq-pretrain/checkpoints/${OUTPUT_FOLDER_NAME}-${CURRENT_DATETIME}"
 
 LOG_FILE="${SAVE_PATH}/training.log"
 
