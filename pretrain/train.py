@@ -205,11 +205,9 @@ class Trainer:
         print_rank_0("end load model", rank=self.training_args.global_rank, wrap=True)
     
     def build_dataloader(self):
-        train_dataset = CoqDataset(self.training_args.data_path, 
-                                                self.training_args.anneal_path, 
-                                                self.training_args.model_max_length)
+        train_dataset = CoqDataset(self.training_args.data_path)
         
-        eval_dataset = CoqDataset(self.training_args.eval_path, self.training_args.model_max_length)
+        eval_dataset = CoqDataset(self.training_args.eval_path)
 
         if self.training_args.local_rank == -1:
             train_sampler = RandomSampler(train_dataset)

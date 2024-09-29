@@ -10,10 +10,9 @@ fi
 # 赋值操作
 OUTPUT_FOLDER_NAME="$1"
 
-MODEL_NAME="/cephfs/shared/hf_cache/hub/models--microsoft--phi-2/snapshots/710686f446f02286c858c11f052acb87c306ddd2"
-DATA_PATH="/cephfs/shared/lichao/pretrain/data/pretrain_data/train"
-EVAL_PATH="/cephfs/shared/lichao/pretrain/data/pretrain_data/test"
-ANNEAL_PATH="/cephfs/shared/lichao/pretrain/data/pretrain_data/anneal"
+MODEL_NAME="/cephfs/shared/hf_cache/hub/models--mistralai--Mistral-7B-Instruct-v0.1/snapshots/7ad5799710574ba1c1d953eba3077af582f3a773"
+DATA_PATH="/cephfs/shared/yanghanbin/data/coq/train_data_proof_state_transition_outcomes_v6.jsonl"
+EVAL_PATH="/cephfs/shared/yanghanbin/data/coq/test_data_proof_state_transition_outcomes_v6.jsonl"
 
 CURRENT_DATETIME=$(date "+%Y-%m-%d-%H-%M-%S")
 
@@ -48,20 +47,16 @@ mkdir -p "$SAVE_PATH"
     --save_strategy "steps" \
     --save_steps 2000 \
     --weight_decay 0.02 \
-    --logging_steps 1 \
     --num_train_epochs 2 \
-    --lr_scheduler_type "tri_stage" \
+    --scheduler "tri_stage" \
     --warmup 0.1 \
     --learning_rate 2e-4 \
-    --min_lr_rate 0.01 \
-    --lora_r 0 \
     --zero_stage 1 \
     --offload_adam false \
     --offload_params false \
     --gradient_checkpointing \
     --wandb_enabled \
-    --wandb_project_name "pretrain" \
-    --resume_from_checkpoint "/cephfs/shared/lichao/pretrain/checkpoints/math_1_5b_mixed_5-2024-08-20-11-33-06"
+    --wandb_project_name "pretrain_coq" \
 
   echo "Training finished at $(date)"
 
