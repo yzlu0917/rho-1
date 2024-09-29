@@ -33,7 +33,7 @@ mkdir -p "$SAVE_PATH"
   echo "Starting training at $(date)"
   echo "Saving logs to $LOG_FILE"
 
-  deepspeed pretrain/pretrain.py \
+  deepspeed pretrain/train.py \
     --deepspeed ds_config/ds_config_stage2.json \
     --model_name_or_path "$MODEL_NAME" \
     --data_path "$DATA_PATH" \

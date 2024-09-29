@@ -20,10 +20,10 @@ from dotenv import load_dotenv
 from dataset.Coqdataset import CoqDataCollator, CoqDataset
 from torch.utils.data import DataLoader, DistributedSampler, RandomSampler
 
-from arguments import DataArguments, ModelArguments, TrainingArguments
+from pretrain_args import PretrainArguments
 from model.utils import print_model_parameters, save_model, init_from_pretrained
 from utils.file import dump_json_file, load_json_file
-from utils.train import get_all_reduce_mean, print_rank_0, set_random_seed, to_device, is_rank_0
+from utils.train import get_all_reduce_mean, print_rank_0, set_random_seed, to_device, is_rank_0, parse_remaining_args_to_dict
 from utils import *
 from utils.train import clean_dict, clear_memory
 from utils.optimizers import *
@@ -33,8 +33,6 @@ set_random_seed(42)
 
 class Trainer:
     def __init__(self):
-        self.model_args = None
-        self.data_args = None
         self.training_args = None
 
         self.ds_config = None
@@ -78,14 +76,16 @@ class Trainer:
         self.init_monitor()
 
     def parse_arguments(self):
-        parser = transformers.HfArgumentParser((ModelArguments, DataArguments, TrainingArguments))
+        parser = transformers.HfArgumentParser(PretrainArguments)
+        (
+            self.training_args,
+            remaining_args,
+        ) = parser.parse_args_into_dataclasses(return_remaining_strings=True)
 
-        args = parser.parse_args_into_dataclasses(return_remaining_strings=True)
+        remaining_args_dict = parse_remaining_args_to_dict(remaining_args)
 
-        self.model_args, self.data_args, self.training_args = args[:3]
         print_rank_0(self.training_args)
-        print_rank_0(self.model_args)
-        print_rank_0(self.data_args)
+        print_rank_0(remaining_args_dict)
     
     def init_monitor(self):
         self.monitor = MonitorMaster(DeepSpeedConfig(self.training_args.deepspeed).monitor_config)
@@ -189,7 +189,7 @@ class Trainer:
         print_rank_0("start load model", rank=self.training_args.global_rank, wrap=True)
 
         model, tokenizer, config = init_from_pretrained(
-            pretrained_dir=self.model_args.pretrained_dir,
+            pretrained_dir=self.training_args.pretrained_dir,
             model_max_length=self.training_args.model_max_length
         )
 

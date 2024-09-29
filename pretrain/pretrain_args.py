@@ -10,13 +10,11 @@ class PretrainArguments(transformers.TrainingArguments):
     # Model arguments
     model_name_or_path: Optional[str] = field(default="EleutherAI/llemma_7b")
     dropout: float = field(default=0, metadata={"help": "model dropout"})
-    lora_r: int = field(default=0, metadata={"help": "lora r"})
-    lora_target_modules: Sequence[str] = field(default=("q_proj", "v_proj"), metadata={"help": "lora target modules"})
-    only_optimize_lora: bool = field(default=True, metadata={"help": "only optimize lora"})
     zero_stage: int = field(default=1, metadata={"help": "zero stage"})
     offload_adam: bool = field(default=False, metadata={"help": "offload adam parameters to cpu"})
     offload_params: bool = field(default=False, metadata={"help": "offload model parameters  to cpu"})
-
+    gradient_checkpointing: bool = field(default=True, metadata={"help": "Whether to use gradient checkpointing"})
+    
     # Data arguments
     data_path: str = field(default="/cephfs/shared/lichao/pretrain/data/pretrain_data/train",
                            metadata={"help": "Path to the training data."})
@@ -24,9 +22,6 @@ class PretrainArguments(transformers.TrainingArguments):
     eval_path: str = field(default="/cephfs/shared/lichao/pretrain/data/pretrain_data/test",
                            metadata={"help": "Path to the evaluating data."})
     
-    anneal_path: str = field(default="/cephfs/shared/lichao/pretrain/data/pretrain_data/anneal",
-                        metadata={"help": "Path to the annealing data."})
-
     # Training arguments
     cache_dir: Optional[str] = field(default=None, metadata={"help": "Path to the huggingface hub."})
     model_max_length: int = field(default=2048, metadata={
@@ -35,8 +30,8 @@ class PretrainArguments(transformers.TrainingArguments):
     learning_rate: float = field(default=1e-5, metadata={"help": "init learning rate"})
     attn_implementation: str = field(default="flash_attention_2", metadata={"help": "attention implementation"})
     fp32_loss: bool = field(default=False, metadata={"help": "whether calculate loss in fp32"})
-    lr_scheduler_type: str = field(default="cosine", metadata={"help": "The scheduler type to use, default to consine"})
-    min_lr_rate: float =  field(default=0.01, metadata={"help": "The minimum learning rate as a ratio of the initial learning rate."})
+    scheduler: str = field(default="cosine", metadata={"help": "The scheduler type to use, default to consine"})
+    warmup: float = field(default=0.1, metadata={"help": "Warmup ratio for scheduler"})
     
     # wandb
     wandb_enabled: bool = field(default=False, metadata={"help": "whether use wandb"})

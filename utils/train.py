@@ -15,6 +15,13 @@ from transformers import set_seed
 
 import constants
 
+def configure_dropout(model_config, dropout):
+    if dropout is not None:
+        for key in ('dropout', 'attention_dropout', 'hidden_dropout',
+                    'activation_dropout'):
+            if hasattr(model_config, key):
+                print(f"Setting model_config.{key} to {dropout}")
+                setattr(model_config, key, dropout)
 
 def get_all_reduce_mean(tensor):
     torch.distributed.all_reduce(tensor, op=torch.distributed.ReduceOp.SUM)
@@ -50,7 +57,21 @@ def is_rank_0():
             return False
     else:
         return True
-
+    
+def parse_remaining_args_to_dict(remaining_args):
+    """将剩余参数列表转换为字典。将成对出现的 '--key value' 映射到相应的键值对，单独的键映射为 True。"""
+    it = iter(remaining_args)
+    args_dict = {}
+    for key in it:
+        clean_key = key.lstrip('-')
+        value = next(it, True)  # 默认为 True，如果没有下一个值，表示这是一个标志位
+        if isinstance(value, str) and value.startswith('--'):
+            # 如果下一个值实际是另一个键，将当前键映射为 True，并将迭代器回退一步
+            args_dict[clean_key] = True
+            remaining_args.insert(remaining_args.index(value), key)  # 将迭代器回退到当前位置
+        else:
+            args_dict[clean_key] = value
+    return args_dict
 
 def print_rank_0(msg, rank=None, wrap=False):
     if wrap:
