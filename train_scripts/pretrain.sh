@@ -1,14 +1,14 @@
 #!/bin/bash
 
-# 检查是否传入了输出文件夹名字作为参数
-if [ "$#" -ne 1 ]; then
-    echo "Error: Output folder name is required."
-    echo "Usage: $0 <output-folder-name>"
-    exit 1
-fi
+# # 检查是否传入了输出文件夹名字作为参数
+# if [ "$#" -ne 1 ]; then
+#     echo "Error: Output folder name is required."
+#     echo "Usage: $0 <output-folder-name>"
+#     exit 1
+# fi
 
 # 赋值操作
-OUTPUT_FOLDER_NAME="$1"
+OUTPUT_FOLDER_NAME="rho1"
 
 MODEL_NAME="/cephfs/shared/hf_cache/hub/models--mistralai--Mistral-7B-Instruct-v0.1/snapshots/7ad5799710574ba1c1d953eba3077af582f3a773"
 DATA_PATH="/cephfs/shared/yanghanbin/data/coq/train_data_proof_state_transition_outcomes_v6.jsonl"
