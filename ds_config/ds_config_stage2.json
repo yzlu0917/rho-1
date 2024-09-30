@@ -16,8 +16,6 @@
     },
     "wandb": {
       "enabled": true,
-      "group": "sqz-agi",
-      "team": "sqz-agi",
-      "project": "sqz_math_comb"
+      "project": "coq-pretrain"
     }
   }

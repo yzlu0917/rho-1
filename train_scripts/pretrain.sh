@@ -13,6 +13,8 @@ OUTPUT_FOLDER_NAME="rho1"
 MODEL_NAME="/cephfs/shared/hf_cache/hub/models--mistralai--Mistral-7B-Instruct-v0.1/snapshots/7ad5799710574ba1c1d953eba3077af582f3a773"
 DATA_PATH="/cephfs/shared/yanghanbin/data/coq/train_data_proof_state_transition_outcomes_v6.jsonl"
 EVAL_PATH="/cephfs/shared/yanghanbin/data/coq/test_data_proof_state_transition_outcomes_v6.jsonl"
+# DATA_PATH='/cephfs/shared/luyanzhen/data/train_ps_v6.jsonl'
+# EVAL_PATH='/cephfs/shared/luyanzhen/data/test_ps_v6.jsonl'
 
 CURRENT_DATETIME=$(date "+%Y-%m-%d-%H-%M-%S")
 
@@ -35,14 +37,13 @@ mkdir -p "$SAVE_PATH"
 
   deepspeed pretrain/train.py \
     --deepspeed ds_config/ds_config_stage2.json \
-    --model_name_or_path "$MODEL_NAME" \
+    --pretrained_dir "$MODEL_NAME" \
     --data_path "$DATA_PATH" \
     --eval_path "$EVAL_PATH" \
-    --anneal_path "$ANNEAL_PATH" \
     --output_dir "$SAVE_PATH" \
     --model_max_length 2048 \
-    --per_device_train_batch_size 32 \
-    --per_device_eval_batch_size 32 \
+    --per_device_train_batch_size 2 \
+    --per_device_eval_batch_size 2 \
     --gradient_accumulation_steps 1 \
     --save_strategy "steps" \
     --save_steps 2000 \
@@ -50,6 +51,8 @@ mkdir -p "$SAVE_PATH"
     --num_train_epochs 2 \
     --scheduler "tri_stage" \
     --warmup 0.1 \
+    --weight_decay 0.001 \
+    --decay 0.5 \
     --learning_rate 2e-4 \
     --zero_stage 1 \
     --offload_adam false \

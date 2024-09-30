@@ -1,0 +1,7 @@
+*.txt
+*.log
+*.yaml
+*.json
+*.wandb
+*.pyc
+wandb/*

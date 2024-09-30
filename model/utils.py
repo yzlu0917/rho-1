@@ -7,7 +7,7 @@ from utils.train import print_rank_0
 from transformers import LlamaForCausalLM, LlamaConfig
 from rho1.SLMforward import SelectiveAutoModelForCausalLM
 from rho1.SLMentropy import SelectiveAutoModelEntropyForCausalLM
-from tokenization import add_special_tokens_to_tokenizer
+from model.tokenization import add_special_tokens_to_tokenizer
 
 def model_embedding_resize(model, tokenizer, num_new_tokens):
     model.resize_token_embeddings(len(tokenizer))
@@ -24,19 +24,23 @@ def model_embedding_resize(model, tokenizer, num_new_tokens):
 
 def add_special_tokens_to_to_tokenizer(tokenizer, model):
     num_new_tokens = add_special_tokens_to_tokenizer(tokenizer)
+    print('================')
+    print(num_new_tokens)
     model_embedding_resize(model, tokenizer, num_new_tokens)
 
 def init_config(pretrained_model_name_or_path: str,
                 attn_implementation: Optional[str] = "flash_attention_2"):
     config = AutoConfig.from_pretrained(pretrained_model_name_or_path,
                                         attn_implementation=attn_implementation)
+    return config
+def update_config(config):
     print_rank_0("Config:", wrap=True)
     print_rank_0(config)
     
     config.pad_token_id = config.vocab_size
     config.global_token_start_id = config.vocab_size + 1
     config.global_token_end_id = config.vocab_size + 2
-    config.context_token_start_id = config.vocav_size +3
+    config.context_token_start_id = config.vocab_size +3
     config.context_token_end_id = config.vocab_size + 4
     config.tactic_token_start_id = config.vocab_size +5
     config.tactic_token_end_id = config.vocab_size + 6
@@ -59,10 +63,10 @@ def init_from_pretrained(
 ):
 
     config = AutoConfig.from_pretrained(
-        os.path.join(pretrained_dir, "config"), attn_implementation=attn_implementation
+        pretrained_dir, attn_implementation=attn_implementation
     )
 
-    tokenizer = AutoTokenizer.from_pretrained(os.path.join(pretrained_dir, "tokenizer"))
+    tokenizer = AutoTokenizer.from_pretrained(pretrained_dir)
 
     model = AutoModelForCausalLM.from_pretrained(
         pretrained_dir, 
@@ -99,10 +103,10 @@ def init_slm_entropy_from_pretrained(
 ):
 
     config = AutoConfig.from_pretrained(
-        os.path.join(pretrained_dir, "config"), attn_implementation=attn_implementation
+        pretrained_dir, attn_implementation=attn_implementation
     )
 
-    tokenizer = AutoTokenizer.from_pretrained(os.path.join(pretrained_dir, "tokenizer"))
+    tokenizer = AutoTokenizer.from_pretrained(pretrained_dir)
 
     model = SelectiveAutoModelEntropyForCausalLM.from_pretrained(
         pretrained_dir, 
@@ -130,11 +134,13 @@ def init_from_pretrained(
     print_rank_0("Model:", wrap=True)
     print_rank_0(model)
 
-    tokenizer = AutoTokenizer.from_pretrained(os.path.join(pretrained_dir, "tokenizer"),model_max_length=model_max_length)
+    tokenizer = AutoTokenizer.from_pretrained(pretrained_dir,model_max_length=model_max_length)
     add_special_tokens_to_to_tokenizer(tokenizer, model)
 
     print_rank_0("Tokenizer:", wrap=True)
     print_rank_0(tokenizer)
+    
+    config = update_config(config)
 
     model.config.pad_token_id = config.pad_token_id
     model.config.global_token_start_id = config.global_token_start_id

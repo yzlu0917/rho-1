@@ -9,6 +9,8 @@ import transformers
 class PretrainArguments(transformers.TrainingArguments):
     # Model arguments
     model_name_or_path: Optional[str] = field(default="EleutherAI/llemma_7b")
+    pretrained_dir: Optional[str] = field(default=None)
+    
     dropout: float = field(default=0, metadata={"help": "model dropout"})
     zero_stage: int = field(default=1, metadata={"help": "zero stage"})
     offload_adam: bool = field(default=False, metadata={"help": "offload adam parameters to cpu"})
@@ -32,6 +34,8 @@ class PretrainArguments(transformers.TrainingArguments):
     fp32_loss: bool = field(default=False, metadata={"help": "whether calculate loss in fp32"})
     scheduler: str = field(default="cosine", metadata={"help": "The scheduler type to use, default to consine"})
     warmup: float = field(default=0.1, metadata={"help": "Warmup ratio for scheduler"})
+    decay: float = field(default=0.5, metadata={"help": "Decay ratio for scheduler"})
+    weight_decay: float = field(default=0.01, metadata={"help": "Weight decay for AdamW"})
     
     # wandb
     wandb_enabled: bool = field(default=False, metadata={"help": "whether use wandb"})

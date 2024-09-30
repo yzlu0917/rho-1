@@ -13,7 +13,6 @@ import torch.distributed
 from deepspeed.runtime.zero import ZeroParamStatus
 from transformers import set_seed
 
-import constants
 
 def configure_dropout(model_config, dropout):
     if dropout is not None:

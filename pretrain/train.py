@@ -28,6 +28,12 @@ from utils import *
 from utils.train import clean_dict, clear_memory
 from utils.optimizers import *
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+set_random_seed(42)
 set_random_seed(42)
 
 
@@ -47,6 +53,8 @@ class Trainer:
         self.train_dataloader = None
         self.total_steps = None
         self.eval_dataloader = None
+        self.lr_scheduler = None
+        self.optimizer = None
         self.monitor = None
 
         self.init()
@@ -70,6 +78,9 @@ class Trainer:
         self.build_dataloader()
 
         self.total_steps = len(self.train_dataloader) * self.training_args.num_train_epochs
+        
+        self.init_optimizer()
+        self.build_scheduler()
 
         self.init_deepspeed()
 
@@ -120,6 +131,7 @@ class Trainer:
         }
         
         return ds_config
+    
     def init_ds_config(self):
         if self.training_args.deepspeed:
             ds_config = load_json_file(self.training_args.deepspeed)
@@ -157,33 +169,31 @@ class Trainer:
                     optimizer_class = deepspeed.ops.adam.DeepSpeedCPUAdam
             else:
                 raise ValueError(f"No optimizer class specified")
-        optimizer = optimizer_class(optimizer_grouped_parameters, 
+        self.optimizer = optimizer_class(optimizer_grouped_parameters, 
                                     lr=self.training_args.learning_rate, 
                                     betas=(0.9, 0.999),
-                                    scale_parameter=False, 
-                                    relative_step=False)
-        
-        return optimizer
+                                    # scale_parameter=False, 
+                                    # relative_step=False
+                                    )
     
     def build_scheduler(self):
         if self.training_args.scheduler not in str2scheduler:
             raise ValueError(f"Unknown scheduler: {self.training_args.scheduler}")
         
         if self.training_args.scheduler in ['constant']:
-            scheduler = str2scheduler[self.training_args.scheduler](self.optimizer)
+            self.scheduler = str2scheduler[self.training_args.scheduler](self.optimizer)
         if self.training_args.scheduler in ['constant_with_warmup']:
-            scheduler = str2scheduler[self.training_args.scheduler](self.optimizer)
+            self.scheduler = str2scheduler[self.training_args.scheduler](self.optimizer)
         elif self.training_args.scheduler in ["tri_stage"]:
-            scheduler = str2scheduler[self.training_args.scheduler](self.optimizer, 
+            self.scheduler = str2scheduler[self.training_args.scheduler](self.optimizer, 
                                                                     self.total_steps * self.training_args.warmup, 
                                                                     self.total_steps * self.training_args.decay, 
                                                                     self.total_steps)
         else:
-            scheduler = str2scheduler[self.training_args.scheduler](self.optimizer, 
+            self.scheduler = str2scheduler[self.training_args.scheduler](self.optimizer, 
                                                                     self.total_steps * self.training_args.warmup, 
                                                                     self.total_steps)
         
-        return scheduler
 
     def init_model_and_tokenizer(self):
         print_rank_0("start load model", rank=self.training_args.global_rank, wrap=True)
@@ -208,6 +218,11 @@ class Trainer:
         train_dataset = CoqDataset(self.training_args.data_path)
         
         eval_dataset = CoqDataset(self.training_args.eval_path)
+        print('===========')
+        print_rank_0(len(train_dataset), rank=self.training_args.global_rank)
+        print('===========')
+        print_rank_0(len(eval_dataset), rank=self.training_args.global_rank)
+        print_rank_0("end load dataset", rank=self.training_args.global_rank, wrap=True)
 
         if self.training_args.local_rank == -1:
             train_sampler = RandomSampler(train_dataset)
@@ -228,7 +243,7 @@ class Trainer:
             sampler=train_sampler,
             collate_fn=self.data_collator,
             batch_size=self.training_args.per_device_train_batch_size,
-            pin_memory=True
+            # pin_memory=True
         )
 
         self.eval_dataloader = DataLoader(
@@ -238,18 +253,16 @@ class Trainer:
             collate_fn=self.data_collator,
             sampler=eval_sampler,
             batch_size=self.training_args.per_device_eval_batch_size,
-            pin_memory=True
+            # pin_memory=True
         )
 
     def init_deepspeed(self):
         print_rank_0("start deepspeed init", rank=self.training_args.global_rank, wrap=True)
-        optimizer = self.init_optimizer()
-        lr_scheduler = self.build_scheduler()
-
+        
         ds_engine, optimizer, _, lr_scheduler = deepspeed.initialize(
             model=self.model,
-            optimizer=optimizer,
-            lr_scheduler=lr_scheduler,
+            optimizer=self.optimizer,
+            lr_scheduler=self.lr_scheduler,
             collate_fn=self.data_collator,
             args=self.training_args,
             config=self.ds_config,
@@ -294,7 +307,7 @@ class Trainer:
         losses = 0
         step = 0
 
-        for batch in tqdm(self.eval_dataloader, desc="evaluating...", total=len(self.eval_dataloader), disable=not is_rank_0()):
+        for batch in tqdm.tqdm(self.eval_dataloader, desc="evaluating...", total=len(self.eval_dataloader), disable=not is_rank_0()):
             batch = to_device(batch, self.device)
             outputs = self.ds_engine(**batch, use_cache=False)
             loss = outputs.loss
@@ -316,19 +329,16 @@ class Trainer:
 
         return losses.item(), perplexity
 
-    def train_step(self, batch, step, epoch):
+    def train_step(self, batch):
         batch = to_device(batch, self.device)
         outputs = self.ds_engine(**batch, use_cache=False)
+        # print(outputs)
         loss = outputs.loss
         self.ds_engine.backward(loss)
         self.ds_engine.step()
-
-        self.log_step(epoch, step, loss)
         
         clean_dict(batch)
         del outputs
-        del loss
-
         return loss
 
     def train_epoch(self, epoch, start_step=0):
@@ -342,7 +352,7 @@ class Trainer:
 
             try:
                 start_time = time.time()
-                loss = self.train_step(batch,step,epoch)
+                loss = self.train_step(batch)
                 cost_time = time.time() - start_time
             except torch.cuda.OutOfMemoryError as e:
                 for k, v in batch.items():
@@ -351,6 +361,9 @@ class Trainer:
                 print(f"由于内存溢出错误，跳过此批次: {e}")
                 torch.cuda.empty_cache()
                 continue
+            
+            self.log_step(epoch,step,loss)
+            del loss
             
             self.ds_engine.monitor.write_events([("ups", 1. / cost_time, self.ds_engine.global_samples)])
 
