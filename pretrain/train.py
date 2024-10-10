@@ -33,7 +33,7 @@ logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
 )
-set_random_seed(42)
+
 set_random_seed(42)
 
 
@@ -181,19 +181,19 @@ class Trainer:
             raise ValueError(f"Unknown scheduler: {self.training_args.scheduler}")
         
         if self.training_args.scheduler in ['constant']:
-            self.scheduler = str2scheduler[self.training_args.scheduler](self.optimizer)
+            scheduler = str2scheduler[self.training_args.scheduler](self.optimizer)
         if self.training_args.scheduler in ['constant_with_warmup']:
-            self.scheduler = str2scheduler[self.training_args.scheduler](self.optimizer)
+            scheduler = str2scheduler[self.training_args.scheduler](self.optimizer)
         elif self.training_args.scheduler in ["tri_stage"]:
-            self.scheduler = str2scheduler[self.training_args.scheduler](self.optimizer, 
+            scheduler = str2scheduler[self.training_args.scheduler](self.optimizer, 
                                                                     self.total_steps * self.training_args.warmup, 
                                                                     self.total_steps * self.training_args.decay, 
                                                                     self.total_steps)
         else:
-            self.scheduler = str2scheduler[self.training_args.scheduler](self.optimizer, 
+            scheduler = str2scheduler[self.training_args.scheduler](self.optimizer, 
                                                                     self.total_steps * self.training_args.warmup, 
                                                                     self.total_steps)
-        
+        self.lr_scheduler = scheduler
 
     def init_model_and_tokenizer(self):
         print_rank_0("start load model", rank=self.training_args.global_rank, wrap=True)
@@ -217,7 +217,7 @@ class Trainer:
     def build_dataloader(self):
         train_dataset = CoqDataset(self.training_args.data_path)
         
-        eval_dataset = CoqDataset(self.training_args.eval_path)
+        eval_dataset = CoqDataset(self.training_args.eval_path,data_limit=10000)
         print('===========')
         print_rank_0(len(train_dataset), rank=self.training_args.global_rank)
         print('===========')
@@ -239,21 +239,21 @@ class Trainer:
         self.train_dataloader = DataLoader(
             train_dataset,
             num_workers=4,
-            prefetch_factor=4,
+            # prefetch_factor=4,
             sampler=train_sampler,
             collate_fn=self.data_collator,
             batch_size=self.training_args.per_device_train_batch_size,
-            # pin_memory=True
+            pin_memory=True
         )
 
         self.eval_dataloader = DataLoader(
             eval_dataset,
             num_workers=4,
-            prefetch_factor=4,
+            # prefetch_factor=4,
             collate_fn=self.data_collator,
             sampler=eval_sampler,
             batch_size=self.training_args.per_device_eval_batch_size,
-            # pin_memory=True
+            pin_memory=True
         )
 
     def init_deepspeed(self):
@@ -297,11 +297,10 @@ class Trainer:
             self.ds_engine.save_fp16_model(f"{output_dir}/fp16", "pytorch_model.bin") 
     
     @torch.no_grad()
-    def evaluate(self, mode='train') -> Tuple[float, float]:
-        assert mode in ('train', 'test')
+    def evaluate(self) -> Tuple[float, float]:
         start_time = time.time()
 
-        print_rank_0(f'Start evaluation on {mode} data.')
+        print_rank_0(f'Start evaluation',wrap=True)
         self.ds_engine.eval()
 
         losses = 0
@@ -311,11 +310,11 @@ class Trainer:
             batch = to_device(batch, self.device)
             outputs = self.ds_engine(**batch, use_cache=False)
             loss = outputs.loss
-            losses += loss.float()
+            losses += loss.detach().float()
             step += 1
             
-            clean_dict(batch)
-            del outputs
+            # clean_dict(batch)
+            # del outputs
             del loss
 
         losses = losses / (step + 1)
@@ -337,9 +336,9 @@ class Trainer:
         self.ds_engine.backward(loss)
         self.ds_engine.step()
         
-        clean_dict(batch)
-        del outputs
-        return loss
+        # clean_dict(batch)
+        # del outputs
+        return loss.detach().float().item()
 
     def train_epoch(self, epoch, start_step=0):
         self.ds_engine.train()
@@ -370,7 +369,7 @@ class Trainer:
             if (step + 1) % self.training_args.save_steps == 0 and step != start_step:
                 self.evaluate_and_save(epoch, step)
                 self.ds_engine.train()
-                clear_memory()
+                # clear_memory()
 
         self.evaluate_and_save(epoch, step)
 
@@ -381,7 +380,7 @@ class Trainer:
             + str(self.ds_engine.optimizer.param_groups[0]["lr"])
         )
 
-        self.ds_engine.monitor.write_events(
+        self.monitor.write_events(
             [('epoch', epoch, self.ds_engine.global_samples),
              ("step", step, self.ds_engine.global_samples),
              ("loss", loss, self.ds_engine.global_samples),
@@ -421,7 +420,7 @@ class Trainer:
             "epoch": epoch,
             "step": step,
             "global_samples": self.ds_engine.global_samples,
-            "scheduler_state": self.scheduler.state_dict()
+            "scheduler_state": self.lr_scheduler.state_dict()
         }
         self.ds_engine.save_checkpoint(output_dir, client_state=client_state)
 

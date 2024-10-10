@@ -60,6 +60,11 @@ mkdir -p "$SAVE_PATH"
     --gradient_checkpointing \
     --wandb_enabled \
     --wandb_project_name "pretrain_coq" \
+  
+  DEEPSPEED_PID=$!
+  sleep 5
+  py-spy top --pid $DEEPSPEED_PID
+  wait $DEEPSPEED_PID
 
   echo "Training finished at $(date)"
 

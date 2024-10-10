@@ -29,7 +29,7 @@ class PretrainArguments(transformers.TrainingArguments):
     model_max_length: int = field(default=2048, metadata={
         "help": "Maximum sequence length. Sequences will be right padded (and possibly truncated)."})
     overwrite_output_dir: bool = field(default=True)
-    learning_rate: float = field(default=1e-5, metadata={"help": "init learning rate"})
+    learning_rate: float = field(default=3e-4, metadata={"help": "init learning rate"})
     attn_implementation: str = field(default="flash_attention_2", metadata={"help": "attention implementation"})
     fp32_loss: bool = field(default=False, metadata={"help": "whether calculate loss in fp32"})
     scheduler: str = field(default="cosine", metadata={"help": "The scheduler type to use, default to consine"})

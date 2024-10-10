@@ -24,8 +24,8 @@ def model_embedding_resize(model, tokenizer, num_new_tokens):
 
 def add_special_tokens_to_to_tokenizer(tokenizer, model):
     num_new_tokens = add_special_tokens_to_tokenizer(tokenizer)
-    print('================')
-    print(num_new_tokens)
+    print_rank_0('================')
+    print_rank_0(num_new_tokens)
     model_embedding_resize(model, tokenizer, num_new_tokens)
 
 def init_config(pretrained_model_name_or_path: str,

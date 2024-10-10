@@ -5,7 +5,8 @@ from typing import List, Dict, Optional, Union
 import torch
 import json
 from torch.utils.data import Dataset
-# from jinja2 import Template
+from utils.train import print_rank_0
+
 from string import Template
 from dataset.utils import add_bos_eos, tokenize_str
 
@@ -21,6 +22,10 @@ COQ_TEMPLATE = Template(
 
 AFTER_STATE_TEMPLATE = Template(
     f"""{CONTEXT_TOKEN_START}$context{CONTEXT_TOKEN_END}{GOAL_TOKEN_START}$goal{GOAL_TOKEN_END}"""
+)
+
+EVAL_TEMPLATE =  Template(
+    f"""{CONTEXT_TOKEN_START}$context{CONTEXT_TOKEN_END}{GOAL_TOKEN_START}$goal{GOAL_TOKEN_END}{TACTIC_TOKEN_START}"""
 )
 
 # class TextTokenIds:
@@ -67,7 +72,10 @@ AFTER_STATE_TEMPLATE = Template(
 class TextOnly:
     def __init__(self, text: str):
         self.text = text
-
+        
+    def __repr__(self):
+        return f"{self.__class__.__name__}('{self.text}')"
+    
 class Goal(TextOnly):
     pass
 
@@ -93,7 +101,7 @@ class Proofstate:
     def _parse_state(self, state: Dict) -> Dict:
         return {
             'contexts': [Context(ctx.get('text', '')) for ctx in state.get('contexts', [])],
-            'contextNames': [ContextName(name.get('text', '')) for name in state.get('contextNames', [])],
+            # 'contextNames': [ContextName(name.get('text', '')) for name in state.get('contextNames', [])],
             'goal': Goal(state['goal'].get('text', '')) if 'goal' in state else None
         }
 
@@ -102,6 +110,9 @@ class Proofstate:
             'tactic': Tactic(tactic['tactic'].get('text', '')) if 'tactic' in tactic else None,
             'params': [Param(param.get('text', '')) for param in tactic.get('params', [])]
         }
+        
+    def __repr__(self):
+        return f"Proofstate(before={self.before}, after={self.after}, tactic={self.tactic}, file_id='{self.file_id}')"
 
 class CoqDataset(Dataset):
     def __init__(
@@ -112,10 +123,11 @@ class CoqDataset(Dataset):
         super().__init__()
         self.data_files = self._get_data_files(data_path)
         self.data_limit = data_limit
-        self.file_line_counts = self._count_lines_per_file()
-        self.total_lines = sum(self.file_line_counts)
+        self.total_lines = self._count_lines_per_file()
+        self.data = self._load_all_data()
         if self.data_limit:
-            self.total_lines = min(self.total_lines, self.data_limit)
+            self.data = self.data[:data_limit]
+            # self.total_lines = min(self.total_lines, self.data_limit)
             
     def _get_data_files(self, data_path):
         if isinstance(data_path, str):
@@ -128,25 +140,29 @@ class CoqDataset(Dataset):
         raise ValueError("Invalid data_path. Must be a .jsonl file, a directory containing .jsonl files, or a list of .jsonl files.")
 
     def _count_lines_per_file(self):
-        return [sum(1 for _ in open(f)) for f in self.data_files]
+        print_rank_0('count_line', wrap=True)
+        line_counts = []
+        for f in self.data_files:
+            with open(f, 'r') as file:
+                line_counts.append(sum(1 for _ in file))
+        return line_counts
     
     def __len__(self):
-        return self.total_lines
+        return len(self.data)
+    
+    def _load_all_data(self):
+        all_data = []
+        print_rank_0('load all data', wrap=True)
+        # print(self.data_files)
+        for file_path in self.data_files:
+            with open(file_path, 'r') as f:
+                for line in f:
+                    data = json.loads(line)
+                    all_data.append(Proofstate(data))
+        return all_data
     
     def __getitem__(self, idx):
-        if idx < 0 or idx >= self.total_lines:
-            raise IndexError("Index out of range")
-
-        for file_idx, line_count in enumerate(self.file_line_counts):
-            if idx < line_count:
-                break
-            idx -= line_count
-
-        with open(self.data_files[file_idx], 'r') as f:
-            for i, line in enumerate(f):
-                if i == idx:
-                    data = json.loads(line)
-                    return Proofstate(data)
+        return self.data[idx]
     
 class CoqDataCollator:
     def __init__(self, tokenizer, max_length: int = 2048):
@@ -181,6 +197,7 @@ class CoqDataCollator:
                 params=params,
                 after_states=after_states_str
             )
+
             input_id = tokenize_str(formatted_input, self.tokenizer, truncation=True)
             input_id = add_bos_eos(input_id, self.tokenizer)
             input_ids.append(torch.tensor(input_id))
